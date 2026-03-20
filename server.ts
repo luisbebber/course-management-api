@@ -1,7 +1,8 @@
 import fastify from 'fastify'
-import { eq } from 'drizzle-orm'
-import { db } from './src/database/client.ts'
-import { courses } from './src/database/schema.ts'
+import { validatorCompiler, serializerCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod'
+import { createCourseRoute } from './src/routes/create-course.ts'
+import { getCourseRoute } from './src/routes/get-course.ts'
+import { getCourseByIdRoute } from './src/routes/get-course-by-id.ts'
 
 const server = fastify({
   logger: {
@@ -13,56 +14,16 @@ const server = fastify({
       },
     },
   },
-})
+}).withTypeProvider<ZodTypeProvider>()
 
-server.get('/courses', async (request, reply) => {
-  const result = await db.select({
-    id: courses.id,
-    title: courses.title,
-  }).from(courses)
+server.setValidatorCompiler(validatorCompiler)
+server.setSerializerCompiler(serializerCompiler)
 
-  return reply.send({ courses: result })
-})
+server.register(createCourseRoute)
+server.register(getCourseRoute)
+server.register(getCourseByIdRoute)
 
-server.get('/courses/:id', async (request, reply) => {
-  type Params = {
-    id: string
-  }
 
-  const params = request.params as Params
-  const courseId = params.id
-
-  const result = await db
-    .select()
-    .from(courses)
-    .where(eq(courses.id, courseId))
-
-  if (result.length > 0) {
-    return { course: result[0] }
-  }
-
-  return reply.status(404).send()
-})
- 
-server.post('/courses', async (request, reply) => {
-  type Body = {
-    title: string
-  }
-
-  const body = request.body as Body
-  const courseTitle = body.title
-
-  if (!courseTitle) {
-    return reply.status(400).send({ message: 'Título obrigatório.' })
-  }
-
-  const result = await db
-    .insert(courses)
-    .values({ title: courseTitle })
-    .returning()
-
-  return reply.status(201).send({ courseId: result[0].id })
-})
 
 server.listen({ port: 3333 }).then(() => {
   console.log('HTTP server running!')
